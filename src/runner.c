@@ -1,63 +1,57 @@
-#ifndef STDIO
-#define STDIO
 #include <stdio.h>
-#endif
 
 #include <time.h>
 #include <signal.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <errno.h>
-#include <stdlib.h>
 
-int runner(int argc, char* argv[]) {
-	
-	if(argc < 2) {
-                printf("ERROR: THE NUMBER OF AGURMENTS MUST BE BIGGER THAN TWO!\n");
-                return 1;
+int
+runner(int argc, char* argv[]) {
+
+	printf("argc: %d, argv[0]: %s, argv[1]: %s\n",argc,argv[0],argv[1]);
+
+        int result;
+        int pipefd[2];
+        FILE *cmd_output;
+        char buf[1024];
+        int status;
+
+        result = pipe(pipefd);
+        if (result < 0) {
+          perror("pipe");
+          return -1;
         }
 
-	int fd[2];
-	pipe(fd);
-	int val = 0;
-	int pid = 1;
-	fork(&pid);
+        result = fork();
+        if(result < 0) {
+          return -1;
+        }
 
-	if(pid) { // Parent
+        if (result == 0) {
+          dup2(pipefd[1], STDOUT_FILENO); /* Duplicate writing end to stdout */
+          close(pipefd[0]);
+          close(pipefd[1]);
 
-		int start, end;
-		start = (int)clock() / CLOCKS_PER_SEC;
-		end = (((int)clock()) / CLOCKS_PER_SEC);
+	  execl(argv[0],argv[0],argv[1],NULL); // TODO: multiple argument
+          //execl("../test/test_atoi", "test_atoi", "10",NULL);
+          //execl("/Users/sungbin/Desktop/SBFuzzer/test/test_atoi", "/Users/sungbin/Desktop/SBFuzzer/test/test_atoi", "10",NULL);
+          _exit(1);
+        }
 
-		while ( (end - start) < 100) {
-			sleep(3); /* sleep 3 seconds */
-			rc = waitpid(pid, &status, WNOHANG);
-			if (rc < 0) {
-				perror("waitpid");
-				return 1;
-			}
-			if (WIFEXITED(status) || WIFSIGNALED(status)) {
-        			/* it's done */
-        			break;
-    			}
-			end = (((int)clock()) / CLOCKS_PER_SEC);
-		}
+        /* Parent process */
+        close(pipefd[1]); /* Close writing end of pipe */
 
-		close(fd[1]);
-		read(fd[0], &val, sizeof(val));
-		printf("Parent received value: %d\n", val);
-		close(fd[0]);
+        cmd_output = fdopen(pipefd[0], "r");
 
-		
-	} else { // Child
-		close(fd[0]);
-	
-		dup2(fd[1], STDOUT_FILENO)
+        if (fgets(buf, sizeof buf, cmd_output)) {
+          printf("Data from who command: %s\n", buf);
+        } else {
+          printf("No data received.\n");
+        }
 
-		execl(argv[1], (argv+1) ); //STD_OUT 으로 값이 출력이 안됨?
-		
-	}
-	
-	return 0;
+        wait(&status);
+        printf("Child exit status = %d\n", status);
+
+        return 0;
 }
-
