@@ -11,4 +11,4 @@ runner.o : runner.c
 	$(CC) -c -o runner.o runner.c
   
 clean : 
-	rm *.o fuzzer
+	rm *.o rm ../test/*.txt fuzzer
